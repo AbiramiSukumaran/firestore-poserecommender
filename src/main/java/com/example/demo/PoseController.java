@@ -58,6 +58,7 @@ import org.springframework.http.HttpMethod;
 import org.json.JSONObject;  
 import org.json.JSONArray;  
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 
@@ -93,31 +94,48 @@ RestTemplate restTemplate = new RestTemplate();
     */
     @GetMapping("/showpose")
     public String callPoseByIdAPI(Pose pose){
-        try{
-        String nameString = pose.getName();
-        String idParam = param_url + nameString;
-        String paramString = get_pose_by_id + idParam;
-        System.out.println("res: " + paramString);
-        
-        HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(Arrays.asList(MediaType.APPLICATION_JSON));
-        HttpEntity<String> entity = new HttpEntity<>("parameters", headers);
-        ResponseEntity<String> resultString = restTemplate.exchange(paramString, HttpMethod.GET, entity, String.class);
-        String result = resultString.toString();
-        System.out.println("RESULTTTTTTT: " + result);
-        JSONObject jsonObject = new JSONObject(result.substring(5));
-        JSONObject breath = jsonObject.getJSONObject("fields").getJSONObject("breath");
-        JSONObject posture = jsonObject.getJSONObject("fields").getJSONObject("posture");
-           
-        pose.setName(nameString);
-        pose.setBreath(breath.get("stringValue").toString());
-        pose.setPosture(posture.get("stringValue").toString());
-        return "showmessage";
-        }catch(Exception e){
+        try {
+            String nameString = pose.getName();
+
+            String endpoint = "https://data.mongodb-api.com/app/<<YOUR_APP>>/endpoint/data/beta";
+            String action = "/action/findOne";
+            String uri = endpoint + action;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setAccept(Arrays.asList(MediaType.APPLICATION_JSON));
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("api-key", "<<YOUR_API_KEY>>");
+
+            JsonObject properties = new JsonObject();
+            properties.addProperty("dataSource", "Test");
+            properties.addProperty("database", "SpringGCP");
+            properties.addProperty("collection", "poses");
+
+            JsonObject filter = new JsonObject();
+            filter.addProperty("name", nameString);
+            properties.add("filter", filter);
+
+            HttpEntity<?> entity = new HttpEntity<Object>(properties.toString(), headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(uri, entity, String.class);
+
+            String result = response.getBody();
+            JSONObject jsonObject = new JSONObject(result);
+            JSONObject document = jsonObject.getJSONObject("document");
+            String breath = document.getString("breath");
+            String posture = document.getString("posture"); 
+
+            pose.setName(nameString);
+            pose.setBreath(breath);
+            pose.setPosture(posture);
+            
+            return "showmessage";
+        } catch(Exception e){
             System.out.println("Exception in Search Request: " + e);
             return "searchpose";
         }
     }
+
 
 @PostMapping("/editpose")
 public String callPatch(Pose pose) {
